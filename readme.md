@@ -68,10 +68,10 @@ Spark provides a `sortBy` function which takes care of the first step above in a
 
 # Benchmarks
 
-Benchmarks were carried out on AWS EMR. I decided to use [`i3.xlarge`](https://aws.amazon.com/ec2/instance-types/i3/) instances in the beginning because of their fast NVMe SSD storage and capable amount of RAM.
+Benchmarks were carried out on AWS [EMR](https://aws.amazon.com/emr/). I decided to use [`i3.xlarge`](https://aws.amazon.com/ec2/instance-types/i3/) instances in the beginning because of their fast NVMe SSD storage and capable amount of RAM.
 
 
-There's a an application parameter `hadoop.numThreads` which controls the number of reduce threads in each Hadoop job for the MapReduce version, while in the Spark version, the number of partitions in the serialization jobs. I set this `n_nodes` in case of Hadoop as larger values caused the jobs to slow down. For the Spark however, increasing it to `n_nodes * v_cpu` yielded some speed. The MapReduce results as follows:
+The application parameter `hadoop.numThreads` controls the number of reduce threads in each Hadoop job for the MapReduce version, and the number of partitions in the serialization jobs, in the Spark one. I set this `n_nodes` in case of Hadoop as larger values caused the jobs to slow down. For the Spark however, increasing it to `n_nodes * v_cpu` yielded some speed. The MapReduce results as follows:
 
 | SF  | workers | Platform  | Instance Type | runtime (min) | runtime * worker/SF (min) |
 |-----|---------|-----------|---------------|---------------|---------------------------|
