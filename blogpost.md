@@ -1,10 +1,5 @@
 # Speeding up LDBC SNB Datagen
 
-# TODO
-- Person ranking case study
-- Benchmark
-- Next steps
-
 # Introduction
 
 LDBC's Social Network Benchmark (LDBC SNB) is an industrial and academic initiative, formed by principal actors in the field of graph-like data management. Its goal is to define a framework where different graph-based technologies can be fairly tested and compared, that can drive the identification of systems' bottlenecks and required functionalities, and can help researchers to open new research frontiers.
@@ -50,7 +45,7 @@ The first milestone is a successful run of LDBC Datagen on Spark. For this we on
 
 **Regression tests** Lacking tests apart from an id uniqueness check, we had no means to detect bugs introduced by the migration. Designing and implementing these was out of scope, so I resorted to regression testing, with the MapReduce output as the baseline. Most of these are Hadoop sequence files which Spark supports, so I could just read them and compare with the results of the RDD produced by the migrated code.
 
-**Multi-threading issues** Soon after migrating the first generator and running the regression tests, I started to face discrepancies in the output. These only surfaced when I set the parallization level larger than 1. This indicated the presence of possible race condition. Thread-safety wasn't a concern in the original implementation, due to the fact that MapReduce doesn't use thread-based parallelization for mappers and reducers<sup>2</sup>. In Spark however, tasks are executed by parallel threads in the same JVM application, so the code should be thread safe. After some debugging, I found one bug originating from the shared use of `java.text.SimpleDateFormat` in serializers which is notoriously not thread-safe. This was resolved simply by changing to `java.time.format.DateTimeFormatter`. There were multiple instances of some static field on an object being mutated concurrently. In some cases this was a temporary buffer and was easily resolved by making it an instance variable. In another case a shared context variable was used, which I resolved by passing dedicated instances as function arguments. Sadly, the Java language has the same syntax for accessing locals, fields and statics <sup>3</sup>, which makes it somewhat harder to detect the usage scope. Fortunately, in no case I needed to introduce a new mutex or concurrent collection.
+**Multi-threading issues** Soon after migrating the first generator and running the regression tests, I started to face discrepancies in the output. These only surfaced when I set the parallization level larger than 1. This indicated the presence of possible race condition. Thread-safety wasn't a concern in the original implementation, due to the fact that MapReduce doesn't use thread-based parallelization for mappers and reducers<sup>1</sup>. In Spark however, tasks are executed by parallel threads in the same JVM application, so the code should be thread safe. After some debugging, I found one bug originating from the shared use of `java.text.SimpleDateFormat` in serializers which is notoriously not thread-safe. This was resolved simply by changing to `java.time.format.DateTimeFormatter`. There were multiple instances of some static field on an object being mutated concurrently. In some cases this was a temporary buffer and was easily resolved by making it an instance variable. In another case a shared context variable was used, which I resolved by passing dedicated instances as function arguments. Sadly, the Java language has the same syntax for accessing locals, fields and statics <sup>2</sup>, which makes it somewhat harder to detect the usage scope. Fortunately, in no case I needed to introduce a new mutex or concurrent collection.
 
 **Use your memory!** I focused on keeping the call sequence intact, so that the migrated code evaluates the same steps in the same order, but with the data passed as RDDs. The initial runs showed that we can generate . We can add `MEMORY_AND_DISK` caching strategy if we undersize memory.
 
@@ -90,7 +85,7 @@ The next logical step is refactoring the serializers so they use Spark's high-le
 - <a name="s3g2"></a>[S3G2: a Scalable Structure-correlated Social Graph Generator](https://research.vu.nl/en/publications/s3g2-a-scalable-structure-correlated-social-graph-generator)
 - 
 
-<sup>1</sup> Instead, 
+<sup>1</sup> Instead, multiple YARN containers have to be used if you want to parallelize on the same machine. 
 <sup>2</sup> Although editors usually render these using different font styles.
 
 
