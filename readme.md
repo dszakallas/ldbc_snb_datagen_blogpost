@@ -68,7 +68,7 @@ Spark provides a `sortBy` function which takes care of the first step above in a
 
 # Benchmarks
 
-Benchmarks were carried out on [AWS EMR](https://aws.amazon.com/emr). I decided to use [`i3.xlarge`](https://aws.amazon.com/ec2/instance-types/i3/) instances in the beginning because of their fast NVMe SSD storage and capable amount of RAM.
+Benchmarks were carried out on AWS EMR. I decided to use [`i3.xlarge`](https://aws.amazon.com/ec2/instance-types/i3/) instances in the beginning because of their fast NVMe SSD storage and capable amount of RAM.
 
 
 There's a an application parameter `hadoop.numThreads` which controls the number of reduce threads in each Hadoop job for the MapReduce version, while in the Spark version, the number of partitions in the serialization jobs. I set this `n_nodes` in case of Hadoop as larger values caused the jobs to slow down. For the Spark however, increasing it to `n_nodes * v_cpu` yielded some speed. The MapReduce results as follows:
@@ -111,7 +111,7 @@ Full CPU utilization for Spark (SF100, last graph shows master)
 ![Spark eats up memory fast (SF100)](mr_sf100_mem_free.png)
 Spark eats up memory fast (SF100, 2nd graph shows master)
 
-`i3.2xlarge` would have been the most straightforward option for scaling up the instances, however the humongous 1.9 TB disk of this image is completely superfluous for the job. I decided to go with the cheaper r5d.2xlarge instance, largely identical to i3.2xlarge, except it _only_ has a 300 GB SSD.
+`i3.2xlarge` would have been the most straightforward option for scaling up the instances, however the humongous 1.9 TB disk of this image is completely superfluous for the job. I decided to go with the cheaper `r5d.2xlarge` instance, largely identical to `i3.2xlarge`, except it _only_ has a 300 GB SSD.
 
 
 | SF   | workers | Platform | Instance Type | runtime (min) | runtime * worker/SF (min) |
