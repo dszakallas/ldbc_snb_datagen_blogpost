@@ -2,13 +2,13 @@
 
 # Introduction
 
-LDBC's Social Network Benchmark (LDBC SNB) is an industrial and academic initiative, formed by principal actors in the field of graph-like data management. Its goal is to define a framework where different graph-based technologies can be fairly tested and compared, that can drive the identification of systems' bottlenecks and required functionalities, and can help researchers to open new research frontiers.
+LDBC's [Social Network Benchmark](#snb) (LDBC SNB) is an industrial and academic initiative, formed by principal actors in the field of graph-like data management. Its goal is to define a framework where different graph-based technologies can be fairly tested and compared, that can drive the identification of systems' bottlenecks and required functionalities, and can help researchers to open new research frontiers.
 
-LDBC SNB provides Datagen (Data Generator), which produces synthetic datasets, mimicing a social network's activity during a period of time. Datagen is defined by the charasteristics of realism, scalability, determinism and usability. To address scalability in particular, Datagen is implemented on the MapReduce platform to enable scaling out to a distributed cluster. Since its inception in the early 2010s, there have been a tremendous amount of development in the big data landscape, so it makes sense reevaluate this decision. More specifically, whether we were better off using Apache Spark instead.
+LDBC SNB provides [Datagen](https://github.com/ldbc/ldbc_snb_datagen) (Data Generator), which produces synthetic datasets, mimicing a social network's activity during a period of time. Datagen is defined by the charasteristics of realism, scalability, determinism and usability. To address scalability in particular, Datagen is implemented on the MapReduce platform to enable scaling out to a distributed cluster. Since its inception in the early 2010s, there have been a tremendous amount of development in the big data landscape, so it makes sense reevaluate this decision. More specifically, whether we were better off using Apache Spark instead.
 
 # Overview
 
-The format of this post allows for a minimal introduction only, see [References](#References) for details. The benchmark's specification describes a social network [data model](https://github.com/ldbc/ldbc_snb_docs/blob/dev/figures/schema.pdf), consisting of two parts: static and dynamic. The dynamic part synthesizes a network where people have friends, post in forums, comment or like others' posts, etc.; wherees static part contains related attributes such as countries, universities and organizations and is unchanged in time. 
+The format of this post allows for a minimal introduction only, see [References](#References) for details. The benchmark's specification describes a social network [data model](https://github.com/ldbc/ldbc_snb_docs/blob/dev/figures/schema.pdf), consisting of two parts: static and dynamic. The dynamic part synthesizes a network where people have friends, post in forums, comment or like others' posts, etc.; whereas the static part contains related attributes such as countries, universities and organizations and is unchanged in time. 
 
 Datasets are generated in a multi-stage process shown in the diagram below.
 
@@ -124,13 +124,18 @@ i3.2xlarge would have been the most straightforward option for scaling up the in
 
 # Next steps
 
-The next logical step is refactoring the serializers so they use Spark's high-level writer facilities. The most compelling benefit is that it will make the jobs fault-tolerant, as Spark's writers make sure that the integrity of the output is kept in face of task failures. This makes Datagen more resilient and opens up the possibility to run on less reliable hardware configuration (EC2 spot nodes on AWS) for additional cost savings. They will supposedly also yield some speedup on the same cluster configuration. 
+The next improvement is refactoring the serializers so they use Spark's high-level writer facilities. The most compelling benefit is that it will make the jobs fault-tolerant, as Spark's writers make sure that the integrity of the output is kept in face of task failures. This makes Datagen more resilient and opens up the possibility to run on less reliable hardware configuration (EC2 spot nodes on AWS) for additional cost savings. They will supposedly also yield some speedup on the same cluster configuration. 
 
+# Acknowledgements
+
+This work is based upon the work of Arnau Prat, Gábor Szárnyas, Ben Steer, Jack Waudby and other LDBC contributors. Thanks for your help and feedback!
 
 # References
 
 - <a name="datagen"></a>[9th TUC Meeting – LDBC SNB Datagen Update – Arnau Prat (UPC)](https://www.youtube.com/watch?v=ZQOLuCOOpSI) - [slides](http://wiki.ldbcouncil.org/pages/viewpage.action?pageId=59277315&preview=/59277315/75431942/datagen_in_depth.pdf)
 - <a name="s3g2"></a>[S3G2: a Scalable Structure-correlated Social Graph Generator](https://research.vu.nl/en/publications/s3g2-a-scalable-structure-correlated-social-graph-generator)
+- <a name="snb"></a>[The LDBC Social Network Benchmark](https://arxiv.org/abs/2001.02299)
+- [LDBC](http://www.ldbcouncil.org/) - [GitHub organization](https://github.com/ldbc)
 
 <a name="fn1"><sup>1</sup></a> Also makes it easier to map to a tabular format thus it is a SQL friendly representation.
 
