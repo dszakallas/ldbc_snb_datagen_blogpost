@@ -48,11 +48,11 @@ The first milestone is a successful run of LDBC Datagen on Spark, whilst making 
 
 TODO: add a sentence on what the next listing is about
 
-**Regression tests** Lacking tests apart from an id uniqueness check, I had no means to detect bugs introduced by the migration. Designing and implementing a comprehensive test suite was out of scope, so I resorted to regression testing, with the MapReduce output as baseline. The output mostly consists of Hadoop sequence files, which can be read with Spark, so that I can compare them with the results of the RDD produced by the migrated code.
+**Regression tests** Lacking tests apart, from an id uniqueness check, meant there were no means to detect bugs introduced by the migration. Designing and implementing a comprehensive test suite was out of scope, so instead regression testing was utilised, with the MapReduce output as baseline. The ogirinal output mostly consists of Hadoop sequence files which can be read into Spark, allowing comparisons to be drawn with the output from the RDD produced by the migrated code.
 
-**Multi-threading issues** Soon after migrating the first generator and running the regression tests, I started to face discrepancies in the output. These only surfaced when I set the parallelization level larger than 1. This indicated the presence of potential race conditions. Thread-safety wasn't a concern in the original implementation, due to the fact that MapReduce doesn't use thread-based parallelization for mappers and reducers.[<sup>3</sup>](#fn3) In Spark however, tasks are executed by parallel threads in the same JVM application, so the code is required to be thread-safe. After some debugging, I found one bug originating from the shared use of `java.text.SimpleDateFormat` (notoriously known to be not thread-safe) in the serializers. This was resolved simply by changing to `java.time.format.DateTimeFormatter`. There were multiple instances of some static field on an object being mutated concurrently. In some cases this was a temporary buffer and was easily resolved by making it an instance variable. In another case a shared context variable was used, which I resolved by passing dedicated instances as function arguments. Sadly, the Java language has the same syntax for accessing locals, fields and statics, [<sup>4</sup>](#fn4) which makes it somewhat harder to find potential unguarded shared variables.
+**Multi-threading issues** Soon after migrating the first generator and running the regression tests, there were clear discrepancies in the output. These only surfaced when the parallelization level was set greater than 1. This indicated the presence of potential race conditions. Thread-safety wasn't a concern in the original implementation due to the fact that MapReduce doesn't use thread-based parallelization for mappers and reducers.[<sup>3</sup>](#fn3) In Spark however, tasks are executed by parallel threads in the same JVM application, so the code is required to be thread-safe. After some debugging, a bug was discovered originating from the shared use of `java.text.SimpleDateFormat` (notoriously known to be not thread-safe) in the serializers. This was resolved simply by changing to `java.time.format.DateTimeFormatter`. There were multiple instances of some static field on an object being mutated concurrently. In some cases this was a temporary buffer and was easily resolved by making it an instance variable. In another case a shared context variable was used, which was resolved by passing dedicated instances as function arguments. Sadly, the Java language has the same syntax for accessing locals, fields and statics, [<sup>4</sup>](#fn4) which makes it somewhat harder to find potential unguarded shared variables.
 
-**Use your memory!** I focused on keeping the call sequence intact, so that the migrated code evaluates the same steps in the same order, but with data passed as RDDs. I placed my bet on the hypothesis that we can either cache the required data in memory entirely at all times, or if not, regenerating them is still faster than involving the disk I/O loop potentially incurred by e.g. the `MEMORY_AND_DISK` serialization. This means I used the default caching strategy everywhere.
+**Use your memory!** A strong focus was placed on keeping the call sequence intact, so that the migrated code evaluates the same steps in the same order, but with data passed as RDDs. It was hypothesised that the required data could be either cached in memory entirely at all times, or if not, regenerating them would still be faster than involving the disk I/O loop. This means the default caching strategy was used everywhere.
 
 # Case study: Person ranking
 
@@ -64,22 +64,22 @@ Migrating the majority of the generators was rather straightforward, however the
 
 The implementation, shown in pseudocode above, works as follows:
 
-1. The equivalence keys are mapped to each person and fed into `TotalOrderPartitioner` which maintains an order sensitive partitioning while still trying to emit more or less equal sized groups to keep the data skew low.
-2. The reducer keys the partitions with its own task id, and a counter variable which has been initialized to zero and incremented on each person, establishing a local ranking inside the group. The final state of the counter (which is the total number of persons in that group) is saved to a separate "side-channel" file upon the completion of a reduce task.
+1. The equivalence keys are mapped to each person and fed into `TotalOrderPartitioner` which maintains an order sensitive partitioning whilst still trying to emit more or less equal sized groups to keep the data skew low.
+2. The reducer keys the partitions with its own task id and a counter variable which has been initialized to zero and incremented on each person, establishing a local ranking inside the group. The final state of the counter (which is the total number of persons in that group) is saved to a separate "side-channel" file upon the completion of a reduce task.
 3. In a consecutive reduce-only stage, the global order is established by reading all of these previously emitted count files in partition numbering order in each reducer and creating an ordered map of each partition number to the corresponding cumulative count of the preceding ones. This is done in the setup phase. In the `reduce` function, the respective count is incremented and assigned to each person.
 
 Once this ranking is done, the whole range is sliced up into equally sized blocks, which are processed independently. For example, when wiring relationships between persons, only those appearing in the same block are considered.
 
 ## The migrated version
 
-Spark provides a `sortBy` function which takes care of the first step above in a single line. The gist of the problem remains collecting the partition sizes and making them available in a later step. While the MapReduce version uses a side output, in Spark we can collect the partition sizes in a separate job and pass them into the next phase using a broadcast variable. The resulting code size is a small fraction of the original one.
+Spark provides a `sortBy` function which takes care of the first step above in a single line. The gist of the problem remains collecting the partition sizes and making them available in a later step. Whilst the MapReduce version uses a side output, in Spark the partition sizes can be colleted in a separate job and passed into the next phase using a broadcast variable. The resulting code size is a fraction of the original one.
 
 # Benchmarks
 
-Benchmarks were carried out on AWS [EMR](https://aws.amazon.com/emr/). I decided to use [`i3.xlarge`](https://aws.amazon.com/ec2/instance-types/i3/) instances in the beginning because of their fast NVMe SSD storage and capable amount of RAM.
+Benchmarks were carried out on AWS [EMR](https://aws.amazon.com/emr/), originally utilising [`i3.xlarge`](https://aws.amazon.com/ec2/instance-types/i3/) instances because of their fast NVMe SSD storage and ample amount of RAM.
 
 
-The application parameter `hadoop.numThreads` controls the number of reduce threads in each Hadoop job for the MapReduce version, and the number of partitions in the serialization jobs, in the Spark one. I set this to `n_nodes`, i.e. the number of machines, in case of Hadoop as larger values caused the jobs to slow down. For the Spark version, however, increasing it to `n_nodes * v_cpu` yielded some speedup. The MapReduce results were as follows:
+The application parameter `hadoop.numThreads` controls the number of reduce threads in each Hadoop job for the MapReduce version and the number of partitions in the serialization jobs in the Spark one. This was set to `n_nodes`, i.e. the number of machines, which in the case of Hadoop caused the jobs to slow down at larger values. The Spark version, on the other hand, yielded some speedup when increasing it to `n_nodes * v_cpu` . The MapReduce results were as follows:
 
 | SF  | workers | Platform  | Instance Type | runtime (min) | runtime * worker/SF (min) |
 |-----|---------|-----------|---------------|---------------|---------------------------|
@@ -89,7 +89,7 @@ The application parameter `hadoop.numThreads` controls the number of reduce thre
 | 300 | 9       | MapReduce | i3.xlarge     | 44            | 1.32                      |
 
 
-We can observe that the runtime per scale factor only increases slowly, which is good. The metrics charts show an underutilized, bursty CPU. The bursts are supposedly interrupted by the disk I/O parts when the node is writing the results of a completed job. We can also see that the memory only starts to get eaten up when we are already 10 minutes into the run.
+It can be observed that the runtime per scale factor only increases slowly, which is good. The metric charts show an underutilized, bursty CPU. The bursts are supposedly interrupted by the disk I/O parts when the node is writing the results of a completed job. It can also be seen that the memory only starts to get eaten up when well over 10 minutes of the run have passed.
 TODO - suggesting a long provisioning phase?
 
 ![CPU Load for the Map Reduce cluster is bursty and less than 50% on average (SF_100)](mr_sf100_cpu_load.png)
@@ -112,7 +112,7 @@ Let's see how Spark fares.
 | 1000 | 30      | Spark    | i3.xlarge     | 47            | 1.41                    |
 | 3000 | 90      | Spark    | i3.xlarge     | 47            | 1.41                    |
 
-A similar trend here, however the run times are around 70% of the MapReduce version. You can see that the larger scale factors (SF1000 and SF3000), yielded a suprisingly long runtime. On the metrics charts of SF100, we can see a fully utilized CPU, except at the end, when the results are serialized in one go and the CPU is basically idle (the snapshot of the diagram doesn't include this part unfortunately). We can see that Spark used up all memory pretty fast even in case of SF100. My hypothesis attributes the slowdowns noticed in SF1000 and SF3000 to the fact that the nodes are running low on memory, and have to calculate RDDs multiple times (no disk level serialization was used here). In fact, I encountered a few OOM errors when running SF3000, so I decided adding some juice (CPU and RAM) to the nodes.
+A similar trend here, however the run times are around 70% of the MapReduce version. It can be seen that the larger scale factors (SF1000 and SF3000) yielded a suprisingly long runtime. On the metric charts of SF100 the CPU shows full utilization, except at the end, when the results are serialized in one go and the CPU is basically idle (the snapshot of the diagram doesn't include this part unfortunately). Spark can be seen to have used up all memory pretty fast even in case of SF100. This appears to be the driving force behind the slowdowns noticed in SF1000 and SF3000 as the nodes are running low on memory, and have to calculate RDDs multiple times (no disk level serialization was used here). In fact, a few OOM errors were encountered when running SF3000, requiring an increase in the CPU and RAM allocated to the nodes.
 
 ![Full CPU utilization for Spark (SF100)](spark_sf100_cpu_load.png)
 Full CPU utilization for Spark (SF100, last graph shows master)
@@ -120,7 +120,7 @@ Full CPU utilization for Spark (SF100, last graph shows master)
 ![Spark eats up memory fast (SF100)](mr_sf100_mem_free.png)
 Spark eats up memory fast (SF100, 2nd graph shows master)
 
-`i3.2xlarge` would have been the most straightforward option for scaling up the instances, however the humongous 1.9 TB disk of this image is completely unnecessary for the job. I decided to go with the cheaper `r5d.2xlarge` instance, largely identical to `i3.2xlarge`, except it _only_ has a 300 GB SSD.
+`i3.2xlarge` would have been the most straightforward option for scaling up the instances, however the humongous 1.9 TB disk of this image is completely unnecessary for the job. Instead the cheaper `r5d.2xlarge` instance was utilised, largely identical to `i3.2xlarge`, except it _only_ has a 300 GB SSD.
 
 
 | SF   | workers | Platform | Instance Type | runtime (min) | runtime * worker/SF (min) |
