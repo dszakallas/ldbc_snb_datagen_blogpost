@@ -8,7 +8,7 @@ LDBC SNB provides [Datagen](https://github.com/ldbc/ldbc_snb_datagen) (Data Gene
 
 # Overview
 
-This post provides an overview of the transition between these platforms, with the full details available within the [References](#References) section. The benchmark's specification describes a social network [data model](https://github.com/ldbc/ldbc_snb_docs/blob/dev/figures/schema.pdf) which divides its components into two broad catagories: static and dynamic. The dynamic element cosists of an evolving network where people make friends, post in forums, comment or like each others posts, etc. In contrast, the static component contains related attributes such as countries, universities and organizations and are fixed values. 
+This post provides an overview of the transition between these platforms — for the detailed specifications of the benchmark and the Datagen component, the reader is referred to the [References](#References) section. The benchmark's specification describes a social network [data model](https://github.com/ldbc/ldbc_snb_docs/blob/dev/figures/schema.pdf) which divides its components into two broad catagories: static and dynamic. The dynamic element cosists of an evolving network where people make friends, post in forums, comment or like each others posts, etc. In contrast, the static component contains related attributes such as countries, universities and organizations and are fixed values. 
 
 TODO: I'd add that all this was mainly to unlock the generation of SFs beyond 1000.
 
@@ -135,7 +135,7 @@ Spark eats up memory fast (SF100, 2nd graph shows master)
 
 The next improvement is refactoring the serializers so they use Spark's high-level writer facilities. The most compelling benefit is that it will make the jobs fault-tolerant, as Spark's writers make sure that the integrity of the output is kept in face of task failures. This makes Datagen more resilient and opens up the possibility to run on less reliable hardware configuration (EC2 spot nodes on AWS) for additional cost savings. They will supposedly also yield some speedup on the same cluster configuration. 
 
-TODO: add deletion generation to future work --   The faster generation also allows the task force to fine-tune the distributions of the newly introduced [delete operations](#deletes).
+The Spark migration also serves as an important building block for the next generation of LDBC benchmarks. As part of extending the SNB benchmark suite, the SNB task force has recently extended Datagen with support for [generating delete operations](#deletes). The next step for the task force is to fine-tune the temporal distributions of these deletion operations to ensure that the emerging sequence of events is realistic, i.e. the emerging distribution resembles what a database system would experience when serving a real social network.
 
 # Acknowledgements
 
@@ -143,7 +143,7 @@ This work is based upon the work of Arnau Prat, Gábor Szárnyas, Ben Steer, Jac
 
 # References
 
-- <a name="deletes"></a>[Supporting Dynamic Graphs and Temporal Entity Deletions in the LDBC Social Network Benchmark's Data Generator - TODO: upload preprint](http://ldbcouncil.org/publications)
+- <a name="deletes"></a>[Supporting Dynamic Graphs and Temporal Entity Deletions in the LDBC Social Network Benchmark's Data Generator](http://ldbcouncil.org/sites/default/files/datagen-deletions-grades-nda-2020.pdf)
 - <a name="datagen"></a>[9th TUC Meeting – LDBC SNB Datagen Update – Arnau Prat (UPC)](https://www.youtube.com/watch?v=ZQOLuCOOpSI) - [slides](http://wiki.ldbcouncil.org/pages/viewpage.action?pageId=59277315&preview=/59277315/75431942/datagen_in_depth.pdf)
 - <a name="s3g2"></a>[S3G2: a Scalable Structure-correlated Social Graph Generator](https://research.vu.nl/en/publications/s3g2-a-scalable-structure-correlated-social-graph-generator)
 - <a name="snb"></a>[The LDBC Social Network Benchmark](https://arxiv.org/abs/2001.02299)
