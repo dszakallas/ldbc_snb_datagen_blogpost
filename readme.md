@@ -36,9 +36,9 @@ The application is written using Hadoop MapReduce, which is now largely supersed
 
 **Smaller codebase** The Hadoop MapReduce library is fairly ceremonial and boilerplaty. Spark provides a higher-level abstraction that is simpler to work with, whilst still providing enough control on the lower-level details required for this workload.
 
-**Small entry cost** Spark uses HDFS under the hood, so a lot of the I/O code can be reused. The Hadoop and Spark frameworks are very close conceptually. Migration to Spark can, therfore, be completed with relatively small effort. Additionally, MapReduce and Spark jobs can be run on AWS EMR using basically the same hw/sw configuration, which facilitates straightforward performance comparisons.
+**Small entry cost** Spark uses HDFS under the hood, so a lot of the I/O code can be reused. The Hadoop and Spark frameworks are very close conceptually. Migration to Spark can, therefore, be completed with relatively small effort. Additionally, MapReduce and Spark jobs can be run on AWS EMR using basically the same hw/sw configuration, which facilitates straightforward performance comparisons.
 
-**Incremental improvements** Spark is a platform exposing many APIs for different workloads and operating on different levels of abstraction. Datagen may, therfore, intially utilise the lower-level, Java-oriented RDDs (which offer the clearest 1 to 1 mapping when coming from MapReduce) and gradually move towards DataFrames to support Parquet output in the serializers and maybe unlock some SQL optimization capabilities in the generators later down the road.
+**Incremental improvements** Spark exposes multiple APIs for different workloads and operating on different levels of abstraction. Datagen may, therefore, initially utilise the lower-level, Java-oriented RDDs (which offer the clearest 1 to 1 mapping when coming from MapReduce) and gradually move towards DataFrames to support Parquet output in the serializers and maybe unlock some SQL optimization capabilities in the generators later down the road.
 
 **OSS, commodity** Spark is one of the most widely used open-source big data platforms. Every major public cloud provides a managed offering for Spark. Together these mean that the migration increases the approachability and portability of the code. 
 
@@ -48,11 +48,11 @@ The first milestone is a successful run of LDBC Datagen on Spark, whilst making 
 
 TODO: add a sentence on what the next listing is about
 
-**Regression tests** Lacking tests apart, from an id uniqueness check, meant there were no means to detect bugs introduced by the migration. Designing and implementing a comprehensive test suite was out of scope, so instead regression testing was utilised, with the MapReduce output as baseline. The ogirinal output mostly consists of Hadoop sequence files which can be read into Spark, allowing comparisons to be drawn with the output from the RDD produced by the migrated code.
+**Regression tests** Lacking tests apart from an id uniqueness check, meant there were no means to detect bugs introduced by the migration. Designing and implementing a comprehensive test suite was out of scope, so instead regression testing was utilised, with the MapReduce output as baseline. The ogirinal output mostly consists of Hadoop sequence files which can be read into Spark, allowing comparisons to be drawn with the output from the RDD produced by the migrated code.
 
 **Multi-threading issues** Soon after migrating the first generator and running the regression tests, there were clear discrepancies in the output. These only surfaced when the parallelization level was set greater than 1. This indicated the presence of potential race conditions. Thread-safety wasn't a concern in the original implementation due to the fact that MapReduce doesn't use thread-based parallelization for mappers and reducers.[<sup>3</sup>](#fn3) In Spark however, tasks are executed by parallel threads in the same JVM application, so the code is required to be thread-safe. After some debugging, a bug was discovered originating from the shared use of `java.text.SimpleDateFormat` (notoriously known to be not thread-safe) in the serializers. This was resolved simply by changing to `java.time.format.DateTimeFormatter`. There were multiple instances of some static field on an object being mutated concurrently. In some cases this was a temporary buffer and was easily resolved by making it an instance variable. In another case a shared context variable was used, which was resolved by passing dedicated instances as function arguments. Sadly, the Java language has the same syntax for accessing locals, fields and statics, [<sup>4</sup>](#fn4) which makes it somewhat harder to find potential unguarded shared variables.
 
-**Use your memory!** A strong focus was placed on keeping the call sequence intact, so that the migrated code evaluates the same steps in the same order, but with data passed as RDDs. It was hypothesised that the required data could be either cached in memory entirely at all times, or if not, regenerating them would still be faster than involving the disk I/O loop. This means the default caching strategy was used everywhere.
+**Use your memory!** A strong focus was placed on keeping the call sequence intact, so that the migrated code evaluates the same steps in the same order, but with data passed as RDDs. It was hypothesised that the required data could be either cached in memory entirely at all times, or if not, regenerating them would still be faster than involving the disk I/O loop incurred by the `MEMORY_AND_DISK` persistance for example. This means the default caching strategy was used everywhere.
 
 # Case study: Person ranking
 
@@ -72,7 +72,7 @@ Once this ranking is done, the whole range is sliced up into equally sized block
 
 ## The migrated version
 
-Spark provides a `sortBy` function which takes care of the first step above in a single line. The gist of the problem remains collecting the partition sizes and making them available in a later step. Whilst the MapReduce version uses a side output, in Spark the partition sizes can be colleted in a separate job and passed into the next phase using a broadcast variable. The resulting code size is a fraction of the original one.
+Spark provides a `sortBy` function which takes care of the first step above in a single line. The gist of the problem remains collecting the partition sizes and making them available in a later step. Whilst the MapReduce version uses a side output, in Spark the partition sizes can be collected in a separate job and passed into the next phase using a broadcast variable. The resulting code size is a fraction of the original one.
 
 # Benchmarks
 
