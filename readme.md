@@ -101,14 +101,14 @@ The job only starts to consume memory when already 10 minutes into the run (SF10
 Let's see how Spark fares.
 
 
-| SF   | workers | Platform | Instance Type | runtime (min) | runtime/SF/worker (min) |
-|------|---------|----------|---------------|---------------|-------------------------|
-| 10   | 1       | Spark    | i3.xlarge     | 10            | 1.00                    |
-| 30   | 1       | Spark    | i3.xlarge     | 21            | 0.70                    |
-| 100  | 3       | Spark    | i3.xlarge     | 27            | 0.81                    |
-| 300  | 9       | Spark    | i3.xlarge     | 36            | 1.08                    |
-| 1000 | 30      | Spark    | i3.xlarge     | 47            | 1.41                    |
-| 3000 | 90      | Spark    | i3.xlarge     | 47            | 1.41                    |
+| SF   | workers | Platform | Instance Type | runtime (min) | runtime * worker/SF (min) |
+|------|---------|----------|---------------|---------------|---------------------------|
+| 10   | 1       | Spark    | i3.xlarge     | 10            | 1.00                      |
+| 30   | 1       | Spark    | i3.xlarge     | 21            | 0.70                      |
+| 100  | 3       | Spark    | i3.xlarge     | 27            | 0.81                      |
+| 300  | 9       | Spark    | i3.xlarge     | 36            | 1.08                      |
+| 1000 | 30      | Spark    | i3.xlarge     | 47            | 1.41                      |
+| 3000 | 90      | Spark    | i3.xlarge     | 47            | 1.41                      |
 
 A similar trend here, however the run times are around 70% of the MapReduce version. It can be seen that the larger scale factors (SF1000 and SF3000) yielded a suprisingly long runtime. On the metric charts of SF100 the CPU shows full utilization, except at the end, when the results are serialized in one go and the CPU is basically idle (the snapshot of the diagram doesn't include this part unfortunately). Spark can be seen to have used up all memory pretty fast even in case of SF100. This appears to be the driving force behind the slowdowns noticed in SF1000 and SF3000 as the nodes are running low on memory, and have to calculate RDDs multiple times (no disk level serialization was used here). In fact, a few OOM errors were encountered when running SF3000, requiring an increase in the CPU and RAM allocated to the nodes.
 
