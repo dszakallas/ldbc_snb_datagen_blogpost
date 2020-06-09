@@ -44,7 +44,7 @@ The application is written using Hadoop MapReduce, which is now largely supersed
 
 The first milestone is a successful run of LDBC Datagen on Spark, while making the minimum necessary amount of code alterations. This entails the migration of the Hadoop wrappers around the generators and serializers. The following bullet-points summarize the key notions that cropped up during the process.
 
- - **Use your memory!**: A strong focus was placed on keeping the call sequence intact, so that the migrated code evaluates the same steps in the same order, but with data passed as RDDs. It was hypothesised that the required data could be either cached in memory entirely at all times, or if not, regenerating them would still be faster than involving the disk I/O loop incurred by the `MEMORY_AND_DISK` persistance for example. This means the default caching strategy was used everywhere.
+ - **Use your memory!**: A strong focus was placed on keeping the call sequence intact, so that the migrated code evaluates the same steps in the same order, but with data passed as RDDs. It was hypothesised that the required data could be either cached in memory entirely at all times, or if not, regenerating them would still be faster than involving the disk I/O loop (e.g by using `MEMORY_AND_DISK`). In short, the default caching strategy was used everywhere.
 
 - **Regression tests**: Lacking tests apart from an id uniqueness check, meant there were no means to detect bugs introduced by the migration. Designing and implementing a comprehensive test suite was out of scope, so instead regression testing was utilised, with the MapReduce output as baseline. The ogirinal output mostly consists of Hadoop sequence files which can be read into Spark, allowing comparisons to be drawn with the output from the RDD produced by the migrated code.
 
@@ -63,7 +63,7 @@ _Figure 2. Diagram of the MapReduce code for ranking persons_
 
 The implementation, shown in pseudocode above, works as follows:
 
-1. The equivalence keys are mapped to each person and fed into `TotalOrderPartitioner` which maintains an order sensitive partitioning while still trying to emit more or less equal sized groups to keep the data skew low.
+1. The equivalence keys are mapped to each person and fed into `TotalOrderPartitioner` which maintains an order sensitive partitioning while trying to emit more or less equal sized groups to keep the data skew low.
 2. The reducer keys the partitions with its own task id and a counter variable which has been initialized to zero and incremented on each person, establishing a local ranking inside the group. The final state of the counter (which is the total number of persons in that group) is saved to a separate "side-channel" file upon the completion of a reduce task.
 3. In a consecutive reduce-only stage, the global order is established by reading all of these previously emitted count files in the order of their partition number in each reducer, then creating an ordered map from each partition number to the corresponding cumulative count of persons found in all preceding ones. This is done in the setup phase. In the `reduce` function, the respective count is incremented and assigned to each person.
 
@@ -90,7 +90,7 @@ The MapReduce results were as follows:
 | 300 | 9       | MapReduce | i3.xlarge     | 44            | 1.32                      |
 
 
-It can be observed that the runtime per scale factor only increases slowly, which is good. The metric charts show an underutilized, bursty CPU. The bursts are supposedly interrupted by the disk I/O parts when the node is writing the results of a completed job. It can also be seen that the memory only starts to get consumed after 10 minutes of the run has passed already.
+It can be observed that the runtime per scale factor only increases slowly, which is good. The metric charts show an underutilized, bursty CPU. The bursts are supposedly interrupted by the disk I/O parts when the node is writing the results of a completed job. It can also be seen that the memory only starts to get consumed after 10 minutes of the run have passed.
 
 ![CPU Load for the Map Reduce cluster is bursty and less than 50% on average (SF_100)](mr_sf100_cpu_load.png)
 
@@ -137,7 +137,7 @@ The last column clearly demonstrates our ability to keep the cost per scale fact
 
 The next improvement is refactoring the serializers so they use Spark's high-level writer facilities. The most compelling benefit is that it will make the jobs fault-tolerant, as Spark's keep the output integrity in the face of task failures. This makes Datagen more resilient and opens up the possibility to run on less reliable hardware configuration (EC2 spot nodes on AWS) for additional cost savings. They will supposedly also yield some speedup on the same cluster configuration.
 
-As already mentioned, the migration of the update stream serialization was ignored due to problems with the original code. Ideally, they should be implemented based on theis
+As already mentioned, the migration of the update stream serialization was ignored due to problems with the original code. Ideally, they should be implemented with the new serializers.
 
 The Spark migration also serves as an important building block for the next generation of LDBC benchmarks. As part of extending the SNB benchmark suite, the SNB task force has recently extended Datagen with support for [generating delete operations](#deletes). The next step for the task force is to fine-tune the temporal distributions of these deletion operations to ensure that the emerging sequence of events is realistic, i.e. the emerging distribution resembles what a database system would experience when serving a real social network.
 
