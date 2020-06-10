@@ -30,7 +30,7 @@ Serialization is done by hand-written serializers for the supported output forma
 
 The application is written using Hadoop MapReduce, which is now largely superseded by more modern distributed batch processing platforms, notably Apache Spark. For this reason, it was proposed to migrate Datagen to Spark. The migration provides the following benefits:
 
-- **Memory under-utilization** MapReduce is disk-oriented, in the sense that after each reduce stage it writes the output to disk which is then read back in by the next MapReduce job. As public clouds provide virtual machines with sufficient RAM to encapsulate any generated dataset, time and money are wasted by the overhead incurred by this unnecessary disk I/O. Instead the intermediate results should be cached in memory where possible. The lack of support for this is a well-known limitation of MapReduce.
+- **Better memory utilization** MapReduce is disk-oriented, in the sense that after each reduce stage it writes the output to disk which is then read back in by the next MapReduce job. As public clouds provide virtual machines with sufficient RAM to encapsulate any generated dataset, time and money are wasted by the overhead incurred by this unnecessary disk I/O. Instead the intermediate results should be cached in memory where possible. The lack of support for this is a well-known limitation of MapReduce.
 
 - **Smaller codebase** The Hadoop MapReduce library is fairly ceremonial and boilerplaty. Spark provides a higher-level abstraction that is simpler to work with, while still providing enough control on the lower-level details required for this workload.
 
@@ -78,7 +78,7 @@ Spark provides a `sortBy` function which takes care of the first step above in a
 Benchmarks were carried out on AWS [EMR](https://aws.amazon.com/emr/), originally utilising [`i3.xlarge`](https://aws.amazon.com/ec2/instance-types/i3/) instances because of their fast NVMe SSD storage and ample amount of RAM.
 
 
-The application parameter `hadoop.numThreads` controls the number of reduce threads in each Hadoop job for the MapReduce version and the number of partitions in the serialization jobs in the Spark one. This was set to `n_nodes`, i.e. the number of machines; experimentation yield slowdowns for higher values. The Spark version on the other hand, performed better with this parameter set to `n_nodes * v_cpu`. 
+The application parameter `hadoop.numThreads` controls the number of reduce threads in each Hadoop job for the MapReduce version and the number of partitions in the serialization jobs in the Spark one. For MapReduce, this was set to `n_nodes`, i.e. the number of machines; experimentation yield slowdowns for higher values. The Spark version on the other hand, performed better with this parameter set to `n_nodes * v_cpu`. 
 The scale factor (SF) parameter determines the output size. It is defined so that one SF unit generates around 1 GB of data. That is, SF10 generates around 10 GB, SF30 around 30 GB, etc. It should be noted however, that incidentally the output was only 60% of this in these experiments, stemming from two reasons. One, update stream serialization was not migrated to Spark, due to problems in the original implementation. Of course, for the purpose of faithful comparison the corresponding code was removed from the MapReduce version as well before executing the benchmarks. This explains a 10% reduction from the expected size. The rest can be attributed to incorrectly tuned parameters.[<sup>5</sup>](#fn5)
 The MapReduce results were as follows:
 
@@ -112,7 +112,7 @@ Let's see how Spark fares.
 | 1000 | 30      | Spark    | i3.xlarge     | 47            | 1.41                      |
 | 3000 | 90      | Spark    | i3.xlarge     | 47            | 1.41                      |
 
-A similar trend here, however the run times are around 70% of the MapReduce version. It can be seen that the larger scale factors (SF1000 and SF3000) yielded a suprisingly long runtime. On the metric charts of SF100 the CPU shows full utilization, except at the end, when the results are serialized in one go and the CPU is basically idle (the snapshot of the diagram doesn't include this part unfortunately). Spark can be seen to have used up all memory pretty fast even in case of SF100. This appears to be the driving force behind the slowdowns noticed in SF1000 and SF3000 as the nodes are running low on memory, and have to calculate RDDs multiple times (no disk level serialization was used here). In fact, a few OOM errors were encountered when running SF3000, requiring an increase in the CPU and RAM allocated to the nodes.
+A similar trend here, however the run times are around 70% of the MapReduce version. It can be seen that the larger scale factors (SF1000 and SF3000) yielded a long runtime than expected. On the metric charts of SF100 the CPU shows full utilization, except at the end, when the results are serialized in one go and the CPU is basically idle (the snapshot of the diagram doesn't include this part unfortunately). Spark can be seen to have used up all memory pretty fast even in case of SF100. In case of SF1000 and SF3000, the nodes are running so low on memory that most probably some of the RDDs have to be calculated multiple times (no disk level serialization was used here), which seem to be the most plausible explanation for the slowdowns experienced. In fact, the OOM errors encountered when running SF3000 supports this hypothesis even further. It was thus proposed to scale up the RAM in the instances. The CPU utilization hints that adding some extra vCPUs as well can further yield speedup.
 
 ![Full CPU utilization for Spark (SF100)](spark_sf100_cpu_load.png)
 
@@ -135,7 +135,7 @@ The last column clearly demonstrates our ability to keep the cost per scale fact
 
 # Next steps
 
-The next improvement is refactoring the serializers so they use Spark's high-level writer facilities. The most compelling benefit is that it will make the jobs fault-tolerant, as Spark maintains the output integrity in the face of task failures. This makes Datagen more resilient and opens up the possibility to run on less reliable hardware configuration (EC2 spot nodes on AWS) for additional cost savings. They will supposedly also yield some speedup on the same cluster configuration.
+The next improvement is refactoring the serializers so they use Spark's high-level writer facilities. The most compelling benefit is that it will make the jobs fault-tolerant, as Spark maintains the integrity of the output files in case the task that writes it fails. This makes Datagen more resilient and opens up the possibility to run on less reliable hardware configuration (e.g. EC2 spot nodes on AWS) for additional cost savings. They will supposedly also yield some speedup on the same cluster configuration.
 
 As already mentioned, the migration of the update stream serialization was ignored due to problems with the original code. Ideally, they should be implemented with the new serializers.
 
