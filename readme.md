@@ -117,7 +117,7 @@ A similar trend here, however the run times are around 70% of the MapReduce vers
 ![Full CPU utilization for Spark (SF100)](spark_sf100_cpu_load.png)
 
 _Figure 5. Full CPU utilization for Spark (SF100, last graph shows master)_
-![Spark eats up memory fast (SF100)](mr_sf100_mem_free.png)
+![Spark eats up memory fast (SF100)](spark_sf100_mem_free.png)
 
 _Figure 6. Spark eats up memory fast (SF100, 2nd graph shows master)_
 
